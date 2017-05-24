@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-music-theory/music-theory/chord"
 	"github.com/go-music-theory/music-theory/key"
 	"github.com/go-music-theory/music-theory/note"
 	"github.com/zmb3/spotify"
+	"strings"
 )
 
 // MinimumTracks The least amount of tracks that would be sufficient for the analysis.
@@ -12,6 +14,10 @@ const MinimumTracks = 15
 
 // MinimumTracks The maximum amount of tracks to use for the analysis.
 const MaximumTracks = 30
+
+// Feel The progression style to use.
+// FIXME: Let the user choose its progression style
+var Feel Progression = Cliche
 
 type artistStyle struct {
 	BPM int
@@ -33,8 +39,14 @@ func performAnalysisOnArtist(a spotify.FullArtist) {
 	fav_k := mostFrequentKey(keys)
 	fav_t := mostFrequentTempo(tempos)
 	if fav_k != nil && fav_t > 0 {
-		fmt.Println("Most frequent Key:", *fav_k)
-		fmt.Println("Most frequent Tempo:", fav_t)
+		fmt.Println("\nMost frequent Tempo:", fav_t)
+		fmt.Println("\nMost frequent Key:", *fav_k)
+		fmt.Println("Using the", Feel.Name, "progression, here is the "+
+			"recommended chords order to imitate the", a.Name, "style:\n")
+		chords := generateChordsProgression(*fav_k, Feel)
+		for _, c := range chords {
+			fmt.Println(c.ToYAML())
+		}
 	}
 }
 
@@ -87,7 +99,7 @@ func mostFrequentTempo(m map[int]int) (t_max int) {
 
 // Note Utilities
 
-// classFromInteger Converts spotify pitch integer to a class.
+// classFromInteger Converts Spotify pitch integer to a class.
 // From `https://en.wikipedia.org/wiki/Pitch_class#Other_ways_to_label_pitch_classes`
 func classFromInteger(c int) note.Class {
 	switch spotify.Key(c) {
@@ -120,6 +132,24 @@ func classFromInteger(c int) note.Class {
 		return note.Nil
 	}
 }
+
+// generateChordsProgression Generates a chords progression to use
+// with a starting key.
+func generateChordsProgression(k key.Key, progressionStyle Progression) []chord.Chord {
+	var chords []chord.Chord
+	//class, _ := k.Root.Step(step)
+	class := k.Root
+	chord_s := class.String(k.AdjSymbol) // A string representing the chord
+	chord_s += " " + strings.ToLower(k.Mode.String())
+	c := chord.Of(chord_s)
+	for _, step := range progressionStyle.Steps {
+		c = c.Transpose(step)
+		chords = append(chords, c)
+	}
+	return chords
+}
+
+// Conversion/Hash Utilities
 
 func spotifyKeyToInt(key int, mode int) int {
 	c_int := key * 100
