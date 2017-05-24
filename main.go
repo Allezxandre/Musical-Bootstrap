@@ -1,19 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/jroimartin/gocui"
-	"log"
+	"github.com/zmb3/spotify"
 )
+
+// UI constants
 
 // DefaultSearchText The default placeholder of the search box.
 const DefaultSearchText = "\x1b[38;5;244mSearch"
 
+var artistParameter = flag.String("artist", "", "The artist to look for.")
+
 func main() {
+	flag.Parse()
+
 	// Ready server
-	go launchServer()
+	launchServer()
 	startAuth()
 
+	/* FIXME: UI disabled
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
 		log.Panicln(err)
@@ -32,7 +40,18 @@ func main() {
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
 	}
+	*/
 
+	// Proof of concept
+	res_ch := make(chan *spotify.FullArtist)
+	if artistParameter != nil && len(*artistParameter) > 0 {
+		go searchForArtist(*artistParameter, res_ch)
+	}
+
+	artist := <-res_ch
+	if artist != nil {
+		performAnalysisOnArtist(*artist)
+	}
 }
 
 func layout(g *gocui.Gui) error {
@@ -82,7 +101,6 @@ func searchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		v.Overwrite = !v.Overwrite
 	case key == gocui.KeyEnter:
 		// TODO: Enter pressed
-		fmt.Print("Search string:", searchString)
 	case key == gocui.KeyArrowDown:
 		v.MoveCursor(0, 1, false)
 	case key == gocui.KeyArrowUp:
@@ -94,11 +112,12 @@ func searchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 	}
 	//gocui.DefaultEditor.Edit(v, key, ch, mod)
 	line, err := v.Line(0)
-	if err == nil {
-		searchString = line
-	} else {
+	if err != nil {
+		fmt.Print("An error happened:", err)
 		searchString = ""
+		return
 	}
+	searchString = line
 }
 
 func quit(g *gocui.Gui, v *gocui.View) error {
